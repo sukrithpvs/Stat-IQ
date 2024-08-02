@@ -1,23 +1,61 @@
-# Stat-IQ
-# Prototype Snapshots
 
-## Home Page - Uploading of Dataset
-![Home Page - Uploading of Dataset](https://github.com/user-attachments/assets/7af9c5eb-dded-45b4-bebc-f1a2ca4e2afc)
+# Stat-IQ: BI Automation
 
-## Code Generation by LLM
-![Code Generation by LLM](https://github.com/user-attachments/assets/347dc4f2-e452-454e-a65d-4e6a57cef05a)
+Stat-IQ is a streamlined solution for automating business intelligence and analytics tasks. It automates data cleaning, preprocessing, exploratory analysis, and the evaluation of potential machine learning algorithms for refined datasets. Leveraging Llama 3.1 for dynamic Python code generation and error correction, Stat-IQ produces insightful visualizations with precision and ease.
 
-## Cleaned Dataset
-![Cleaned Dataset](https://github.com/user-attachments/assets/3eb64e9e-4054-4839-999e-066e02935161)
+## Features
 
-## Graphs Generated
-![Graphs Generated](https://github.com/user-attachments/assets/a698f9ef-f1a6-4223-b984-30339f46859e)
+- **Automated Data Cleaning and Preprocessing:** Automatically cleans and preprocesses uploaded datasets.
+- **Dynamic Code Generation:** Utilizes Llama 3.1 to generate and correct Python code dynamically.
+- **Exploratory Data Analysis (EDA):** Performs EDA to summarize the main characteristics of the data.
+- **Machine Learning Evaluation:** Evaluates potential machine learning algorithms for the refined dataset.
+- **Visualizations:** Generates insightful visualizations for various types of data.
+- **Business Recommendations:** Provides business recommendations based on data analysis.
 
-## Business Insights Generated
-![Business Insights Generated](https://github.com/user-attachments/assets/ff64dfd8-ae55-4c57-97da-19751c8a345b)
+## Getting Started
+
+### Prerequisites
+
+- Python 3.x
+- Streamlit
+- Pandas
+- Matplotlib
+- Groq API (Replace with your actual API key)
+
+### Installation
+
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/your-username/Stat-IQ.git
+    cd Stat-IQ
+    ```
+
+2. Install the required packages:
+    ```bash
+    pip install streamlit pandas matplotlib groq
+    ```
+
+### Usage
+
+1. Run the Streamlit application:
+    ```bash
+    streamlit run app.py
+    ```
+
+2. Open your browser and go to `http://localhost:8501`.
+
+3. Upload your dataset and let the system handle the analysis and cleaning.
+
+## Team Members
+
+- [Rupin Ajay](https://github.com/lucyfier56)
+- [Sukrith P.V.S](https://github.com/sukrithpvs)
+- [Rudra Panda](https://github.com/lucyfier56)
+- [Sanjay P N](https://github.com/sanjayperam04)
 
 
 
 
 
-##
+
+
