@@ -6,14 +6,7 @@ import json
 import time
 from groq import Groq
 from io import StringIO
-import subprocess
 import matplotlib.pyplot as plt
-
-# Define the output directory
-def create_temp_folder():
-    temp_folder = '/tmp/automated_analysis'
-    os.makedirs(temp_folder, exist_ok=True)
-    return temp_folder
 
 # Initialize Groq client with your API key
 client = Groq(api_key="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")  # Replace with your actual API key
@@ -66,7 +59,6 @@ def get_response(user_query):
 
 def clean_code(code):
     """Extract only Python code from the response."""
-    # Find code blocks with triple backticks
     code_blocks = re.findall(r'python\n(.*?)\n', code, re.DOTALL)
     if code_blocks:
         return code_blocks[0].strip()
@@ -76,47 +68,35 @@ def clean_code(code):
 
 def execute_code(code, data_file_path):
     """Execute the dynamically generated code."""
-    while True:
-        try:
-            # Clean the code
-            cleaned_code = clean_code(code)
+    try:
+        cleaned_code = clean_code(code)
 
-            if not cleaned_code:
-                st.error("No valid Python code to execute.")
-                return None
+        if not cleaned_code:
+            st.error("No valid Python code to execute.")
+            return None
 
-            # Adjust file path in code
-            cleaned_code = cleaned_code.replace('your_file_path_here', data_file_path)
+        # Adjust file path in code
+        cleaned_code = cleaned_code.replace('your_file_path_here', data_file_path)
 
-            # Save the cleaned code to a temporary file in the output directory
-            script_path = os.path.join(os.path.dirname(data_file_path), "temp_script.py")
-            with open(script_path, "w") as file:
-                file.write(cleaned_code)
+        # Print the cleaned code for debugging
+        st.write("Generated Code:")
+        st.code(cleaned_code, language='python')
 
-            # Print the cleaned code for debugging
-            st.write("Generated Code:")
-            st.code(cleaned_code, language='python')
+        # Run the code using exec (in-memory execution)
+        local_vars = {}
+        exec(cleaned_code, {"__name__": "__main__"}, local_vars)
 
-            # Run the code
-            result = subprocess.run(
-                ["python", script_path],
-                capture_output=True,
-                text=True
-            )
+        cleaned_data = local_vars.get('cleaned_data')
 
-            # Print the result and errors
-            st.write("Code Execution Output:")
-            st.write(result.stdout)
+        if cleaned_data is not None:
+            return cleaned_data
+        else:
+            st.error("No cleaned data generated.")
+            return None
 
-            if result.returncode != 0:
-                error_message = f"Error executing the code: {result.stderr}"
-                st.error(error_message)
-                return error_message
-            else:
-                return os.path.join(os.path.dirname(data_file_path), "cleaned_" + os.path.basename(data_file_path))
-        except Exception as e:
-            st.error(f"Execution error: {e}")
-            time.sleep(2)  # Wait before retrying
+    except Exception as e:
+        st.error(f"Execution error: {e}")
+        time.sleep(2)  # Wait before retrying
 
 def generate_code(data_description, file_path):
     """Generate Python code for data cleaning and preprocessing."""
@@ -160,7 +140,7 @@ def generate_business_recommendations(data_description):
     """Generate business recommendations based on the data description."""
     prompt = f"""
     Based on the following data description, provide 10 business recommendations and analytics.
-    
+
     Data Description:
     {data_description}
     """
@@ -168,15 +148,14 @@ def generate_business_recommendations(data_description):
     return recommendations
 
 # Streamlit UI
-st.title("Stat-IQ")
-st.title("Your One-Stop Platform for Automated Business Intelligence and Analytics")
+st.title("Stat IQ")
 st.write("Upload your dataset and let the system handle the analysis and cleaning.")
 
 uploaded_file = st.file_uploader("Choose a file", type=["csv", "xlsx", "json"])
 
 if uploaded_file is not None:
-    # Create a temporary folder and save the uploaded file
-    temp_folder = create_temp_folder()
+    # Use Streamlit's temporary directory
+    temp_folder = st.experimental_get_tmp_dir()
     temp_file_path = os.path.join(temp_folder, uploaded_file.name)
 
     # Save the uploaded file
@@ -207,33 +186,21 @@ if uploaded_file is not None:
         st.code(code, language='python')
 
         # Execute the generated code
-        error_message = execute_code(code, temp_file_path)
-        if error_message:
-            # Request corrected code from the model
-            st.write("Generating corrected code based on the error message...")
-            corrected_code = get_response(f"Here is the error message: {error_message}. Please fix the code.")
-            if corrected_code:
-                st.write("Corrected Code:")
-                st.code(corrected_code, language='python')
-                cleaned_file_path = execute_code(corrected_code, temp_file_path)
-        else:
-            cleaned_file_path = execute_code(code, temp_file_path)
-
-        if cleaned_file_path:
-            st.write("Dynamic Code Execution Result:")
-            st.write(f"Cleaned dataset saved at: {cleaned_file_path}")
-
-            # Load the cleaned data
-            if uploaded_file.name.endswith('.csv'):
-                cleaned_data = pd.read_csv(cleaned_file_path)
-            elif uploaded_file.name.endswith('.xlsx'):
-                cleaned_data = pd.read_excel(cleaned_file_path)
-            elif uploaded_file.name.endswith('.json'):
-                cleaned_data = pd.read_json(cleaned_file_path)
-
+        cleaned_data = execute_code(code, temp_file_path)
+        if cleaned_data is not None:
             # Display top 10 rows of the cleaned dataset
             st.write("Top 10 rows of the cleaned dataset:")
             st.write(cleaned_data.head(10))
+
+            # Provide a download button for the cleaned data
+            csv_buffer = StringIO()
+            cleaned_data.to_csv(csv_buffer, index=False)
+            st.download_button(
+                label="Download cleaned data as CSV",
+                data=csv_buffer.getvalue(),
+                file_name="cleaned_data.csv",
+                mime="text/csv",
+            )
 
             # Plot and analyze graphs
             st.write("Generating graphs and insights...")
@@ -278,13 +245,13 @@ if uploaded_file is not None:
                     num_plots += 1
 
             if num_plots == 0:
-                st.write("No suitable columns found for plotting.")
+                st.write("No suitable columns found for generating graphs.")
 
-            # Generate business recommendations
+            # Generate business recommendations based on the dataset description
             st.write("Generating business recommendations...")
             recommendations = generate_business_recommendations(data_description)
             st.write("### Business Recommendations and Analytics:")
             st.write(recommendations)
 
-else:
-    st.write("Please upload a dataset to get started.")
+        else:
+            st.error("Error in processing the cleaned data.")
