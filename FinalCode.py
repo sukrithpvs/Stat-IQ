@@ -68,7 +68,7 @@ def clean_code(code):
         return ""
 
 def execute_code(code, data_file_path):
-    """Execute the dynamically generated code."""
+    """Execute the dynamically generated code with detailed debugging."""
     try:
         cleaned_code = clean_code(code)
 
@@ -83,21 +83,25 @@ def execute_code(code, data_file_path):
         st.write("Generated Code:")
         st.code(cleaned_code, language='python')
 
-        # Run the code using exec (in-memory execution)
+        # Initialize a local dictionary to store execution results
         local_vars = {}
+
+        # Run the code using exec (in-memory execution)
         exec(cleaned_code, {"__name__": "__main__"}, local_vars)
 
-        cleaned_data = local_vars.get('cleaned_data')
-
-        if cleaned_data is not None:
-            return cleaned_data
+        # Check if 'cleaned_data' is in the local_vars
+        if 'cleaned_data' in local_vars:
+            st.success("Cleaned data generated successfully!")
+            return local_vars['cleaned_data']
         else:
-            st.error("No cleaned data generated.")
+            st.error("No 'cleaned_data' variable found in the executed code.")
             return None
 
     except Exception as e:
+        # Provide detailed error output
         st.error(f"Execution error: {e}")
-        time.sleep(2)  # Wait before retrying
+        return None
+
 
 def generate_code(data_description, file_path):
     """Generate Python code for data cleaning and preprocessing."""
