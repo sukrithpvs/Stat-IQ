@@ -7,6 +7,7 @@ import time
 from groq import Groq
 from io import StringIO
 import matplotlib.pyplot as plt
+import tempfile  # Import the tempfile module
 
 # Initialize Groq client with your API key
 client = Groq(api_key="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")  # Replace with your actual API key
@@ -154,13 +155,10 @@ st.write("Upload your dataset and let the system handle the analysis and cleanin
 uploaded_file = st.file_uploader("Choose a file", type=["csv", "xlsx", "json"])
 
 if uploaded_file is not None:
-    # Use Streamlit's temporary directory
-    temp_folder = st.experimental_get_tmp_dir()
-    temp_file_path = os.path.join(temp_folder, uploaded_file.name)
-
-    # Save the uploaded file
-    with open(temp_file_path, "wb") as temp_file:
+    # Use Python's tempfile module to handle temporary files
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         temp_file.write(uploaded_file.getvalue())
+        temp_file_path = temp_file.name
 
     # Load the data into a DataFrame
     if uploaded_file.name.endswith('.csv'):
@@ -236,7 +234,7 @@ if uploaded_file is not None:
                 if cleaned_data[column].dtype == 'object':
                     st.write(f"### Pie Chart of {column}")
 
-                    # Create and display pie chart using matplotlib
+                    # Create and display pie chart
                     fig, ax = plt.subplots()
                     cleaned_data[column].value_counts().plot.pie(autopct='%1.1f%%', ax=ax)
                     st.pyplot(fig)
