@@ -141,12 +141,12 @@ def execute_code(code, data_file_path):
         if result.returncode != 0:
             error_message = f"Error executing the code: {result.stderr}"
             st.error(error_message)
-            return error_message
+            return None
         else:
             return temp_script_path
     except Exception as e:
         st.error(f"Execution error: {e}")
-        time.sleep(2)
+        return None
 
 def generate_cleaning_code(data_description, file_path):
     """Generate Python code for data cleaning and preprocessing."""
@@ -184,11 +184,8 @@ def generate_visualization_code(data_description, file_path):
 
 def run_visualizations(script_path):
     """Run the Streamlit visualization script."""
-    try:
-        st.write("Visualization script generated. Use the link below to view it.")
-        st.write(f"Run the script using: `streamlit run {script_path}`")
-    except Exception as e:
-        st.error(f"Unexpected error: {e}")
+    st.write("Visualization script generated. Use the link below to view it.")
+    st.write(f"Run the script using: `streamlit run {script_path}`")
 
 def generate_business_recommendations(data_description):
     """Generate business recommendations based on the dataset."""
@@ -223,76 +220,33 @@ if uploaded_file is not None:
 
         with tab1:
             st.header("Data Overview")
-            st.write(f"Number of rows: {data.shape[0]}")
-            st.write(f"Number of columns: {data.shape[1]}")
-            st.write("Data Sample:")
-            st.write(data.head())
+            st.write(f"Initial Data Shape: {data.shape}")
+            st.dataframe(data.head())
 
         with tab2:
             st.header("Data Analysis and Visualization")
-            if st.button("Generate Cleaning and EDA Code"):
-                data_description = data.describe(include='all').to_json()
-                cleaning_code = generate_cleaning_code(data_description, file_path)
-                if cleaning_code:
-                    st.write("Generated Data Cleaning and EDA Code:")
-                    st.code(cleaning_code, language='python')
-
-                    # Execute the cleaning code
-                    cleaned_file_path = execute_code(cleaning_code, file_path)
-
-                    if cleaned_file_path:
-                        # Load the cleaned dataset
-                        cleaned_data = pd.read_csv(cleaned_file_path)
-                        
-                        # Generate visualization code
-                        visualization_code_path = generate_visualization_code(data_description, cleaned_file_path)
-                        
-                        if visualization_code_path:
-                            # Display the path to run the visualizations
-                            run_visualizations(visualization_code_path)
+            st.write("Generating cleaning and visualization code...")
+            cleaning_code = generate_cleaning_code("Sample data description", file_path)
+            cleaned_file_path = execute_code(cleaning_code, file_path)
+            if cleaned_file_path:
+                try:
+                    cleaned_data = pd.read_csv(cleaned_file_path)
+                    st.write(f"Cleaned Data Shape: {cleaned_data.shape}")
+                    st.dataframe(cleaned_data.head())
+                    visualization_code_path = generate_visualization_code("Sample data description", cleaned_file_path)
+                    if visualization_code_path:
+                        run_visualizations(visualization_code_path)
+                except Exception as e:
+                    st.error(f"Error loading cleaned data: {e}")
 
         with tab3:
-            st.header("Stat-IQ GPT")
-            st.write("Chat with your data and get personalized plots and graphs.")
-            question = st.text_input("Ask a question or request a specific plot:")
-            if st.button("Submit"):
-                if question:
-                    with st.spinner('Generating response...'):
-                        response = get_response(question)
-                    st.write("Response:", response)
-
-                # Check if response contains code
-                if "```python" in response:
-                    cleaned_code = clean_code(response)
-                    if cleaned_code:
-                        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as temp_file:
-                            temp_file.write(f"import pandas as pd\nimport plotly.express as px\nimport streamlit as st\n\n".encode())
-                            temp_file.write(f"data = pd.read_csv(r'{file_path}')\n\n".encode())
-                            temp_file.write(cleaned_code.encode())
-                            custom_script_path = temp_file.name
-                        # Display the path to run the custom visualizations
-                        run_visualizations(custom_script_path)
+            st.header("Chatbot")
+            user_query = st.text_input("Ask a question:")
+            if user_query:
+                response = get_response(user_query)
+                st.write(response)
 
         with tab4:
             st.header("Business Recommendations")
-            if st.button("Generate Recommendations"):
-                data_description = data.describe(include='all').to_json()
-                recommendations = generate_business_recommendations(data_description)
-                st.write("Business Recommendations:")
-                for i, recommendation in enumerate(recommendations):
-                    st.write(f"{i + 1}. {recommendation}")
-
-    else:
-        st.error("Failed to load data from the uploaded file.")
-
-if st.button("Download Cleaned Dataset"):
-    if 'data' in locals() and data is not None:
-        csv = data.to_csv(index=False)
-        st.download_button(
-            label="Download cleaned data as CSV",
-            data=csv,
-            file_name="cleaned_data.csv",
-            mime="text/csv",
-        )
-    else:
-        st.error("No cleaned dataset available for download.")
+            recommendations = generate_business_recommendations("Sample data description")
+            st.write("\n".join(recommendations))
