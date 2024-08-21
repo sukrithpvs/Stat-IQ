@@ -12,15 +12,9 @@ import plotly.express as px
 # Set page config at the very beginning
 st.set_page_config(layout="wide")
 
-# Use environment variable for API key (set in Streamlit Cloud secrets)
-api_key = st.secrets["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"]
 
-@st.cache_resource
-def initialize_groq_client(api_key):
-    """Initialize Groq client with API key."""
-    return Groq(api_key=api_key)
 
-client = initialize_groq_client(api_key=api_key)
+client = initialize_groq_client(api_key="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")
 
 # Initialize conversation history for chat
 if 'conversation_history' not in st.session_state:
