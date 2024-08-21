@@ -13,7 +13,7 @@ import plotly.express as px
 st.set_page_config(layout="wide")
 
 # Use environment variable for API key (set in Streamlit Cloud secrets)
-api_key = st.secrets["groq_api_key"]
+api_key = st.secrets["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"]
 
 @st.cache_resource
 def initialize_groq_client(api_key):
