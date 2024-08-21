@@ -97,7 +97,7 @@ def get_response(user_query):
 
 def clean_code(code):
     """Extract only Python code from the response."""
-    code_blocks = re.findall(r'python\n(.*?)\n', code, re.DOTALL)
+    code_blocks = re.findall(r'```python(.*?)```', code, re.DOTALL)
     if code_blocks:
         return code_blocks[0].strip()
     else:
@@ -227,10 +227,10 @@ if uploaded_file is not None:
                             # Generate visualization code
                             visualization_code = generate_visualization_code(data_description, cleaned_data)
 
-            with col2:
-                if 'visualization_code' in locals() and visualization_code:
-                    # Run the visualization code
-                    run_visualizations(visualization_code, cleaned_data)
+                            if visualization_code:
+                                with col2:
+                                    # Run the visualization code
+                                    run_visualizations(visualization_code, cleaned_data)
 
         with tab3:
             st.header("Ask the Chatbot")
