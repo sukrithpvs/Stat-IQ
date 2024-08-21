@@ -6,7 +6,6 @@ import json
 import time
 from groq import Groq
 import subprocess
-import tempfile
 import plotly.express as px
 
 # Set page config at the very beginning
@@ -17,7 +16,7 @@ def initialize_groq_client(api_key):
     """Initialize Groq client with API key."""
     return Groq(api_key=api_key)
 
-client = initialize_groq_client(api_key="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")  # Replace with your actual API key
+client = initialize_groq_client(api_key="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")  # Replace with your actual API key
 
 # Initialize conversation history for chat
 if 'conversation_history' not in st.session_state:
@@ -44,21 +43,17 @@ def convert_dataframe_types(df):
 @st.cache_resource
 def load_data(file_path):
     """Load the dataset efficiently with caching."""
-    try:
-        if file_path.endswith('.csv'):
-            df = pd.read_csv(file_path)
-        elif file_path.endswith('.xlsx'):
-            df = pd.read_excel(file_path)
-        elif file_path.endswith('.json'):
-            df = pd.read_json(file_path)
-        else:
-            return None
-        
-        df = convert_dataframe_types(df)
-        return df
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
+    if file_path.endswith('.csv'):
+        df = pd.read_csv(file_path)
+    elif file_path.endswith('.xlsx'):
+        df = pd.read_excel(file_path)
+    elif file_path.endswith('.json'):
+        df = pd.read_json(file_path)
+    else:
         return None
+
+    df = convert_dataframe_types(df)
+    return df
 
 def get_response(user_query):
     """Get a response from Groq's model with retry logic and improved error handling."""
@@ -101,14 +96,14 @@ def get_response(user_query):
 
 def clean_code(code):
     """Extract only Python code from the response."""
-    code_blocks = re.findall(r'```python\n(.*?)\n```', code, re.DOTALL)
+    code_blocks = re.findall(r'python\n(.*?)\n', code, re.DOTALL)
     if code_blocks:
         return code_blocks[0].strip()
     else:
         st.error("No Python code found in the response.")
         return ""
 
-def execute_code(code, data_file_path):
+def execute_code(code, df):
     """Execute the dynamically generated code."""
     try:
         cleaned_code = clean_code(code)
@@ -116,47 +111,30 @@ def execute_code(code, data_file_path):
             st.error("No valid Python code to execute.")
             return None
 
-        cleaned_code = cleaned_code.replace('your_file_path_here', data_file_path)
-
-        # Save the cleaned code to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as temp_script_file:
-            script_path = temp_script_file.name
-            with open(script_path, "w") as file:
-                file.write(cleaned_code)
-
         # Print the cleaned code for debugging
         st.write("Generated Code:")
         st.code(cleaned_code, language='python')
 
-        # Run the code
-        result = subprocess.run(
-            ["python", script_path],
-            capture_output=True,
-            text=True
-        )
+        # Execute the code in the current namespace
+        local_namespace = {"df": df}
+        exec(cleaned_code, {}, local_namespace)
 
-        # Print the result and errors
-        st.write("Code Execution Output:")
-        st.write(result.stdout)
-
-        if result.returncode != 0:
-            error_message = f"Error executing the code: {result.stderr}"
-            st.error(error_message)
-            return error_message
+        # Return the modified DataFrame
+        cleaned_df = local_namespace.get("df", None)
+        if cleaned_df is not None:
+            st.write("Code executed successfully.")
+            return cleaned_df
         else:
-            # Load the cleaned data and store it in session_state
-            cleaned_data = pd.read_csv(data_file_path)
-            st.session_state.cleaned_data = cleaned_data
-            return data_file_path
+            st.error("The code did not return a DataFrame.")
+            return None
     except Exception as e:
         st.error(f"Execution error: {e}")
-        time.sleep(2)
         return None
 
-def generate_cleaning_code(data_description, file_path):
+def generate_cleaning_code(data_description):
     """Generate Python code for data cleaning and preprocessing."""
     prompt = f"""
-    Based on the following data description, generate optimized Python code for data cleaning, Exploratory Data Analysis (EDA), and preprocessing. The code should be dynamic and scalable to handle the entire dataset. Prioritize key preprocessing steps and essential EDA techniques that will effectively support most data visualizations. Minimize unnecessary operations to ensure efficiency. Convert the dataset to a DataFrame, and adjust the code to correctly read the file based on its extension at the following path: {file_path}.
+    Based on the following data description, generate optimized Python code for data cleaning, Exploratory Data Analysis (EDA), and preprocessing. The code should be dynamic and scalable to handle the entire dataset. Prioritize key preprocessing steps and essential EDA techniques that will effectively support most data visualizations. Minimize unnecessary operations to ensure efficiency. The dataset is already loaded as a DataFrame called 'df'.
     Use st.cache_data for Streamlit and also show initial data shape and cleaned data shape too.
     Data Description:
     {data_description}
@@ -164,48 +142,41 @@ def generate_cleaning_code(data_description, file_path):
     code = get_response(prompt)
     return code
 
-def generate_visualization_code(data_description, file_path):
+def generate_visualization_code(data_description, df):
     """Generate Python code for data visualization."""
     prompt = f"""
-    Based on the dataset, generate a Streamlit Python code to create a 'dataset name Dashboard' with 7 essential graphs and plots that fully summarize the dataset. The code should include various graph types like pie charts, bar graphs, histograms, and other relevant plots to provide a comprehensive overview. The layout should be inspired by a Power BI analytical dashboard, ensure a wide and aesthetically pleasing horizontal display of the graphs in Streamlit columns.
-    make sure st.set_page_config(layout='wide') is at the begining of the streamlit generated code . dont include this "st.set_page_config(layout='wide')" anywhere else in the generate code except the first line 
-    Ensure that the generated dashboard is easy to interpret, even for someone with no knowledge of EDA or data analysis, effectively conveying the key insights from the dataset. Use only Plotly Express for the visualizations, and make sure the code is error-free. Analyze the dataset thoroughly before plotting.
-    Use 'data' as the name of the DataFrame variable.
+    Based on the cleaned dataset, generate a Streamlit Python code to create a 'dataset name Dashboard' with 7 essential graphs and plots that fully summarize the dataset. The code should include various graph types like pie charts, bar graphs, histograms, and other relevant plots to provide a comprehensive overview. The layout should be inspired by a Power BI analytical dashboard, ensure a wide and aesthetically pleasing horizontal display of the graphs in Streamlit columns.
+    make sure st.set_page_config(layout='wide') is at the beginning of the Streamlit generated code. don't include this "st.set_page_config(layout='wide')" anywhere else in the generated code except the first line.
+    Ensure that the generated dashboard is easy to interpret, even for someone with no knowledge of EDA or data analysis, effectively conveying the key insights from the dataset. Use only Plotly Express for the visualizations, and make sure the code is error-free. Analyze the clean dataset thoroughly before plotting.
     """
     code = get_response(prompt)
     cleaned_code = clean_code(code)
-    
+
     if cleaned_code:
-        script_path = os.path.join(os.path.dirname(file_path), "visualizations.py")
         try:
-            with open(script_path, "w") as file:
-                file.write(f"import pandas as pd\nimport plotly.express as px\nimport streamlit as st\n\n")
-                file.write(f"data = pd.read_csv(r'{file_path}')\n\n")
-                file.write(cleaned_code)
-            st.success("Visualization code generated and saved.")
-            return script_path
+            st.success("Visualization code generated.")
+            return cleaned_code
         except IOError as e:
-            st.error(f"Failed to write code to file: {e}")
+            st.error(f"Failed to generate code: {e}")
             return None
     else:
         st.error("Failed to generate visualization code.")
         return None
 
-def run_visualizations(script_path):
-    """Run the Streamlit visualization script."""
+def run_visualizations(visualization_code, df):
+    """Run the Streamlit visualization code."""
     try:
-        result = subprocess.run(['streamlit', 'run', script_path], check=True, capture_output=True, text=True)
-        st.write(result.stdout)
-    except subprocess.CalledProcessError as e:
-        st.error(f"Execution error: {e.stderr}")
+        # Execute the visualization code in the current namespace
+        local_namespace = {"df": df, "st": st, "px": px}
+        exec(visualization_code, {}, local_namespace)
     except Exception as e:
-        st.error(f"Unexpected error: {e}")
+        st.error(f"Execution error: {e}")
 
 def generate_business_recommendations(data_description):
     """Generate business recommendations based on the dataset."""
     prompt = f"""
     Based on the following data description, provide 10 business recommendations. These recommendations should be actionable and based on the insights derived from the dataset. Focus on key areas where improvements can be made, trends that can be leveraged, and strategies to optimize business operations.
-    
+
     Data Description:
     {data_description}
     """
@@ -220,79 +191,65 @@ st.write("Upload your dataset and let our model handle the analysis and visualiz
 uploaded_file = st.file_uploader("Choose a file", type=["csv", "xlsx", "json"])
 
 if uploaded_file is not None:
-    # Save the uploaded file
-    temp_folder = os.path.join(os.getcwd(), 'automated_analysis')
-    os.makedirs(temp_folder, exist_ok=True)
-    file_path = os.path.join(temp_folder, uploaded_file.name)
-
-    with open(file_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
     # Load the data
-    data = load_data(file_path)
+    data = load_data(uploaded_file)
 
     if data is not None:
-        # Create tabs for different sections of the analysis
-        tab1, tab2, tab3, tab4 = st.tabs(["Data Preview", "Data Cleaning", "Visualization", "Recommendations"])
+        # Create tabs for different sections of the dashboard
+        tab1, tab2, tab3, tab4 = st.tabs(["Data Overview", "Data Analysis and Visualization", "Chatbot", "Business Recommendations"])
 
         with tab1:
-            st.header("Data Preview")
-            st.write("Here's a quick look at your dataset:")
-            st.write(data)
+            st.header("Data Overview")
+            st.write(f"Number of rows: {data.shape[0]}")
+            st.write(f"Number of columns: {data.shape[1]}")
+            st.write("Data Sample:")
+            st.write(data.head())
 
         with tab2:
-            st.header("Data Cleaning and Preprocessing")
-            st.write("Our model will automatically generate code to clean and preprocess your dataset.")
-
-            if st.button("Generate Cleaning Code"):
-                data_description = str(data.describe())
-                cleaning_code = generate_cleaning_code(data_description, file_path)
-
+            st.header("Data Analysis and Visualization")
+            if st.button("Generate Cleaning and EDA Code"):
+                data_description = data.describe(include='all').to_json()
+                cleaning_code = generate_cleaning_code(data_description)
                 if cleaning_code:
-                    st.write("Generated Cleaning Code:")
-                    st.code(cleaning_code, language="python")
-                    
+                    st.write("Generated Data Cleaning and EDA Code:")
+                    st.code(cleaning_code, language='python')
+
                     # Execute the cleaning code
-                    result_path = execute_code(cleaning_code, file_path)
-                    
-                    if result_path:
-                        st.success("Data cleaning executed successfully.")
+                    cleaned_data = execute_code(cleaning_code, data)
+
+                    if cleaned_data is not None:
+                        # Generate visualization code
+                        visualization_code = generate_visualization_code(data_description, cleaned_data)
+
+                        if visualization_code:
+                            # Run the visualization code
+                            run_visualizations(visualization_code, cleaned_data)
 
         with tab3:
-            st.header("Data Visualization")
-            st.write("Our model will generate a complete dashboard with key visualizations.")
+            st.header("Stat-IQ GPT")
+            st.write("Chat with your data and get personalized plots and graphs.")
+            question = st.text_input("Ask a question or request a specific plot:")
+            if st.button("Submit"):
+                if question:
+                    with st.spinner('Generating response...'):
+                        response = get_response(question)
+                        st.write("Response:", response)
 
-            if st.button("Generate Visualization Code"):
-                data_description = str(data.describe())
-                script_path = generate_visualization_code(data_description, file_path)
-                
-                if script_path:
-                    st.write(f"Visualization script saved to {script_path}")
-
-                    if st.button("Run Visualizations"):
-                        run_visualizations(script_path)
+                        # Check if response contains code
+                        if 'python' in response:
+                            cleaned_code = clean_code(response)
+                            if cleaned_code:
+                                # Execute the code or handle the visualization based on the code
+                                run_visualizations(cleaned_code, data)
 
         with tab4:
             st.header("Business Recommendations")
-            st.write("Based on your dataset, our model will generate actionable business recommendations.")
-
             if st.button("Generate Recommendations"):
-                data_description = str(data.describe())
+                data_description = data.describe(include='all').to_json()
                 recommendations = generate_business_recommendations(data_description)
+                st.write("Business Recommendations:")
+                for i, recommendation in enumerate(recommendations):
+                    st.write(f"{i + 1}. {recommendation}")
 
-                st.write("### Business Recommendations:")
-                for i, recommendation in enumerate(recommendations, start=1):
-                    st.write(f"{i}. {recommendation}")
-
-        # Download cleaned data
-        if st.button("Download Cleaned Dataset"):
-            if 'cleaned_data' in st.session_state:
-                csv = st.session_state.cleaned_data.to_csv(index=False)
-                st.download_button(
-                    label="Download cleaned data as CSV",
-                    data=csv,
-                    file_name="cleaned_data.csv",
-                    mime="text/csv",
-                )
-            else:
-                st.error("No cleaned dataset available for download.")
+    else:
+        st.error("Failed to load data from the uploaded file.")
