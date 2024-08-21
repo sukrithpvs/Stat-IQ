@@ -1,4 +1,4 @@
-import os
+ximport os
 import re
 import streamlit as st
 import pandas as pd
@@ -41,19 +41,21 @@ def convert_dataframe_types(df):
     return df
 
 @st.cache_resource
-def load_data(file_path):
+def load_data(uploaded_file):
     """Load the dataset efficiently with caching."""
-    if file_path.endswith('.csv'):
-        df = pd.read_csv(file_path)
-    elif file_path.endswith('.xlsx'):
-        df = pd.read_excel(file_path)
-    elif file_path.endswith('.json'):
-        df = pd.read_json(file_path)
+    # Use the file name to check the file type
+    if uploaded_file.name.endswith('.csv'):
+        df = pd.read_csv(uploaded_file)
+    elif uploaded_file.name.endswith('.xlsx'):
+        df = pd.read_excel(uploaded_file)
+    elif uploaded_file.name.endswith('.json'):
+        df = pd.read_json(uploaded_file)
     else:
         return None
 
     df = convert_dataframe_types(df)
     return df
+
 
 def get_response(user_query):
     """Get a response from Groq's model with retry logic and improved error handling."""
