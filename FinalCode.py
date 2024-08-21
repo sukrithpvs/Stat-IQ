@@ -12,12 +12,15 @@ import plotly.express as px
 # Set page config at the very beginning
 st.set_page_config(layout="wide")
 
+# Use environment variable for API key (set in Streamlit Cloud secrets)
+api_key = st.secrets["groq_api_key"]
+
 @st.cache_resource
 def initialize_groq_client(api_key):
     """Initialize Groq client with API key."""
     return Groq(api_key=api_key)
 
-client = initialize_groq_client(api_key="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")  # Replace with your actual API key
+client = initialize_groq_client(api_key=api_key)
 
 # Initialize conversation history for chat
 if 'conversation_history' not in st.session_state:
@@ -38,7 +41,6 @@ def convert_dataframe_types(df):
             df[col] = pd.to_numeric(df[col], downcast='float')
         elif pd.api.types.is_string_dtype(df[col]):
             df[col] = df[col].astype(str)
-        # Add more type conversions as needed
     return df
 
 @st.cache_resource
@@ -119,9 +121,9 @@ def execute_code(code, data_file_path):
         cleaned_code = cleaned_code.replace('your_file_path_here', data_file_path)
 
         # Save the cleaned code to a temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as temp_script:
-            temp_script.write(cleaned_code.encode())
-            temp_script_path = temp_script.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as temp_file:
+            temp_file.write(cleaned_code.encode())
+            temp_file_path = temp_file.name
 
         # Print the cleaned code for debugging
         st.write("Generated Code:")
@@ -129,7 +131,7 @@ def execute_code(code, data_file_path):
 
         # Run the code
         result = subprocess.run(
-            ["python", temp_script_path],
+            ["python", temp_file_path],
             capture_output=True,
             text=True
         )
@@ -141,12 +143,12 @@ def execute_code(code, data_file_path):
         if result.returncode != 0:
             error_message = f"Error executing the code: {result.stderr}"
             st.error(error_message)
-            return None
+            return error_message
         else:
-            return temp_script_path
+            return os.path.join(tempfile.gettempdir(), os.path.basename(data_file_path))
     except Exception as e:
         st.error(f"Execution error: {e}")
-        return None
+        time.sleep(2)
 
 def generate_cleaning_code(data_description, file_path):
     """Generate Python code for data cleaning and preprocessing."""
@@ -171,21 +173,30 @@ def generate_visualization_code(data_description, file_path):
     cleaned_code = clean_code(code)
     
     if cleaned_code:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as temp_script:
-            temp_script.write(f"import pandas as pd\nimport plotly.express as px\nimport streamlit as st\n\n".encode())
-            temp_script.write(f"data = pd.read_csv(r'{file_path}')\n\n".encode())
-            temp_script.write(cleaned_code.encode())
-            visualization_code_path = temp_script.name
-        st.success("Visualization code generated and saved.")
-        return visualization_code_path
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as temp_file:
+                temp_file.write(f"import pandas as pd\nimport plotly.express as px\nimport streamlit as st\n\n".encode())
+                temp_file.write(f"data = pd.read_csv(r'{file_path}')\n\n".encode())
+                temp_file.write(cleaned_code.encode())
+                temp_file_path = temp_file.name
+            st.success("Visualization code generated and saved.")
+            return temp_file_path
+        except IOError as e:
+            st.error(f"Failed to write code to file: {e}")
+            return None
     else:
         st.error("Failed to generate visualization code.")
         return None
 
 def run_visualizations(script_path):
     """Run the Streamlit visualization script."""
-    st.write("Visualization script generated. Use the link below to view it.")
-    st.write(f"Run the script using: `streamlit run {script_path}`")
+    try:
+        result = subprocess.run(['streamlit', 'run', script_path], check=True, capture_output=True, text=True)
+        st.write(result.stdout)
+    except subprocess.CalledProcessError as e:
+        st.error(f"Execution error: {e.stderr}")
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
 
 def generate_business_recommendations(data_description):
     """Generate business recommendations based on the dataset."""
@@ -206,12 +217,12 @@ st.write("Upload your dataset and let our model handle the analysis and visualiz
 uploaded_file = st.file_uploader("Choose a file", type=["csv", "xlsx", "json"])
 
 if uploaded_file is not None:
-    # Save the uploaded file
+    # Save the uploaded file to a temporary directory
     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as temp_file:
         file_path = temp_file.name
         temp_file.write(uploaded_file.getbuffer())
 
-    # Load the data
+        # Load the data
     data = load_data(file_path)
 
     if data is not None:
@@ -220,33 +231,76 @@ if uploaded_file is not None:
 
         with tab1:
             st.header("Data Overview")
-            st.write(f"Initial Data Shape: {data.shape}")
-            st.dataframe(data.head())
+            st.write(f"Number of rows: {data.shape[0]}")
+            st.write(f"Number of columns: {data.shape[1]}")
+            st.write("Data Sample:")
+            st.write(data.head())
 
         with tab2:
             st.header("Data Analysis and Visualization")
-            st.write("Generating cleaning and visualization code...")
-            cleaning_code = generate_cleaning_code("Sample data description", file_path)
-            cleaned_file_path = execute_code(cleaning_code, file_path)
-            if cleaned_file_path:
-                try:
-                    cleaned_data = pd.read_csv(cleaned_file_path)
-                    st.write(f"Cleaned Data Shape: {cleaned_data.shape}")
-                    st.dataframe(cleaned_data.head())
-                    visualization_code_path = generate_visualization_code("Sample data description", cleaned_file_path)
-                    if visualization_code_path:
-                        run_visualizations(visualization_code_path)
-                except Exception as e:
-                    st.error(f"Error loading cleaned data: {e}")
+            if st.button("Generate Cleaning and EDA Code"):
+                data_description = data.describe(include='all').to_json()
+                cleaning_code = generate_cleaning_code(data_description, file_path)
+                if cleaning_code:
+                    st.write("Generated Data Cleaning and EDA Code:")
+                    st.code(cleaning_code, language='python')
+
+                    # Execute the cleaning code
+                    cleaned_file_path = execute_code(cleaning_code, file_path)
+
+                    if cleaned_file_path:
+                        # Load the cleaned dataset
+                        cleaned_data = pd.read_csv(cleaned_file_path)
+                        
+                        # Generate visualization code
+                        visualization_code_path = generate_visualization_code(data_description, cleaned_file_path)
+                        
+                        if visualization_code_path:
+                            # Run the visualization code
+                            run_visualizations(visualization_code_path)
 
         with tab3:
-            st.header("Chatbot")
-            user_query = st.text_input("Ask a question:")
-            if user_query:
-                response = get_response(user_query)
-                st.write(response)
+            st.header("Stat-IQ GPT")
+            st.write("Chat with your data and get personalized plots and graphs.")
+            question = st.text_input("Ask a question or request a specific plot:")
+            if st.button("Submit"):
+                if question:
+                    with st.spinner('Generating response...'):
+                        response = get_response(question)
+                    st.write("Response:", response)
+
+                    # Check if response contains code
+                    if "```python" in response:
+                        cleaned_code = clean_code(response)
+                        if cleaned_code:
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=".py") as custom_script_file:
+                                custom_script_path = custom_script_file.name
+                                with open(custom_script_path, "w") as file:
+                                    file.write(f"import pandas as pd\nimport plotly.express as px\nimport streamlit as st\n\n")
+                                    file.write(f"data = pd.read_csv(r'{file_path}')\n\n")
+                                    file.write(cleaned_code)
+                                run_visualizations(custom_script_path)
 
         with tab4:
             st.header("Business Recommendations")
-            recommendations = generate_business_recommendations("Sample data description")
-            st.write("\n".join(recommendations))
+            if st.button("Generate Recommendations"):
+                data_description = data.describe(include='all').to_json()
+                recommendations = generate_business_recommendations(data_description)
+                st.write("Business Recommendations:")
+                for i, recommendation in enumerate(recommendations):
+                    st.write(f"{i + 1}. {recommendation}")
+
+    else:
+        st.error("Failed to load data from the uploaded file.")
+
+if st.button("Download Cleaned Dataset"):
+    if 'data' in locals() and data is not None:
+        csv = data.to_csv(index=False)
+        st.download_button(
+            label="Download cleaned data as CSV",
+            data=csv,
+            file_name="cleaned_data.csv",
+            mime="text/csv",
+        )
+    else:
+        st.error("No cleaned dataset available for download.")
