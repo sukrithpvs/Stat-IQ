@@ -12,8 +12,6 @@ from io import StringIO
 st.set_page_config(layout="wide")
 
 
-
-# Retrieve API key from Streamlit secrets
 client = Groq(api_key="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") 
 
 # Initialize conversation history for chat
@@ -229,4 +227,27 @@ if uploaded_file is not None:
             question = st.text_input("Ask a question or request a specific plot:")
             if st.button("Submit"):
                 if question:
-                    with st.spinner
+                    with st.spinner():
+                        response = get_response(question)
+                    st.write("Response",response)
+                                        # Check if response contains code
+                    if "python" in response:
+                        cleaned_code = clean_code(response)
+                        if cleaned_code:
+                            # Directly use the generated code for visualization
+                            run_visualizations(cleaned_code)
+            else:
+                st.error("Please enter a question.")
+
+    with tab4:
+        st.header("Business Recommendations")
+        if st.button("Generate Recommendations"):
+            data_description = data.describe(include='all').to_json()
+            recommendations = generate_business_recommendations(data_description)
+            st.write("Business Recommendations:")
+            for i, recommendation in enumerate(recommendations):
+                st.write(f"{recommendation}")
+
+else:
+    st.error("Failed to load data from the uploaded file.")
+
