@@ -16,7 +16,7 @@ def initialize_groq_client(api_key):
     """Initialize Groq client with API key."""
     return Groq(api_key=api_key)
 
-client = initialize_groq_client(api_key="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")  # Replace with your actual API key
+client = initialize_groq_client(api_key="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")  # Replace with your actual API key
 
 # Initialize conversation history for chat
 if 'conversation_history' not in st.session_state:
@@ -107,7 +107,7 @@ def get_response(user_query):
 
 def clean_code(code):
     """Extract only Python code from the response."""
-    code_blocks = re.findall(r'python\n(.*?)', code, re.DOTALL)
+    code_blocks = re.findall(r'```python\n(.*?)```', code, re.DOTALL)
     if code_blocks:
         return code_blocks[0].strip()
     else:
@@ -182,21 +182,6 @@ def generate_business_recommendations(data_description):
     recommendations = response.split('\n')
     return recommendations
 
-def generate_graph_code(question, data_description):
-    """Generate Python code for creating a graph based on the user's question."""
-    prompt = f"""
-    Based on the following question and data description, generate Python code to create a graph using Plotly Express. The code should be concise, error-free, and ready to run. The dataset is already loaded as a DataFrame named 'df'.
-
-    Question: {question}
-
-    Data Description:
-    {data_description}
-
-    Use only Plotly Express for the visualization. Make sure to include necessary imports and use st.plotly_chart() to display the plot within the Streamlit app.
-    """
-    code = get_response(prompt)
-    return code
-
 # Streamlit UI
 st.title("Stat IQ Dashboard")
 st.write("Upload your dataset and let our model handle the analysis and visualization.")
@@ -261,24 +246,14 @@ if uploaded_file is not None:
             if st.button("Submit"):
                 if question:
                     with st.spinner('Generating response...'):
-                        data_description = data.describe(include='all').to_json()
                         response = get_response(question)
                         st.write("Response:", response)
 
-                        # Generate and execute graph code
-                        graph_code = generate_graph_code(question, data_description)
-                        if graph_code:
-                            st.write("Generated Graph Code:")
-                            st.code(graph_code, language='python')
-                            
-                            # Execute the graph code
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.write("Generated Code:")
-                                st.code(graph_code, language='python')
-                            with col2:
-                                st.write("Generated Graph:")
-                                execute_code(graph_code, data)
+                        # Check if response contains code
+                        if "```python" in response:
+                            cleaned_code = clean_code(response)
+                            if cleaned_code:
+                                execute_code(cleaned_code, data)
                 else:
                     st.error("Please enter a question.")
 
