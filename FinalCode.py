@@ -109,6 +109,11 @@ def execute_code(code, data):
             st.error("No valid Python code to execute.")
             return None
 
+        # Replace any file reading commands with direct usage of the in-memory DataFrame
+        cleaned_code = re.sub(r"pd\.read_csv\([^\)]+\)", 'df', cleaned_code)
+        cleaned_code = re.sub(r"pd\.read_excel\([^\)]+\)", 'df', cleaned_code)
+        cleaned_code = re.sub(r"pd\.read_json\([^\)]+\)", 'df', cleaned_code)
+
         # Execute the code in the current environment
         exec(cleaned_code, {'df': data, 'pd': pd, 'st': st, 'px': px})
 
@@ -167,68 +172,30 @@ if uploaded_file is not None:
     data = load_data(file_path)
 
     if data is not None:
-        # Create tabs for different sections of the dashboard
-        tab1, tab2, tab3, tab4 = st.tabs(["Data Overview", "Data Analysis and Visualization", "Chatbot", "Business Recommendations"])
+        data_description = data.describe().to_string()
 
-        with tab1:
-            st.header("Data Overview")
-            st.write(f"Number of rows: {data.shape[0]}")
-            st.write(f"Number of columns: {data.shape[1]}")
-            st.write("Data Sample:")
-            st.write(data.head())
-            st.subheader("Data Types")
-            st.write(data.dtypes)
-            st.subheader("Summary Statistics")
-            st.write(data.describe())
+        st.subheader("Dataset Overview")
+        st.dataframe(data.head())
 
-        with tab2:
-            st.header("Data Analysis and Visualization")
-            if st.button("Generate Cleaning and EDA Code"):
-                data_description = data.describe(include='all').to_json()
-                cleaning_code = generate_cleaning_code(data_description)
-                if cleaning_code:
-                    st.write("Generated Data Cleaning and EDA Code:")
-                    st.code(cleaning_code, language='python')
+        tabs = st.tabs(["Data Analysis and Visualization", "Business Recommendations"])
 
-                    # Execute the cleaning code and modify the in-memory DataFrame
-                    execute_code(cleaning_code, data)
+        with tabs[0]:
+            st.subheader("Analysis and Visualization")
+            cleaning_code = generate_cleaning_code(data_description)
+            st.code(cleaning_code, language='python')
+            execute_code(cleaning_code, data)
 
-                    # Generate visualization code using the cleaned in-memory DataFrame
-                    visualization_code = generate_visualization_code(data_description)
+            visualization_code = generate_visualization_code(data_description)
+            st.code(visualization_code, language='python')
+            execute_code(visualization_code, data)
 
-                    if visualization_code:
-                        # Execute the visualization code in the same page
-                        execute_code(visualization_code, data)
+        with tabs[1]:
+            st.subheader("Business Recommendations")
+            recommendations = generate_business_recommendations(data_description)
+            for recommendation in recommendations:
+                st.write(f"- {recommendation}")
 
-        with tab3:
-            st.header("Stat-IQ GPT")
-            st.write("Chat with your data and get personalized plots and graphs.")
-            question = st.text_input("Ask a question or request a specific plot:")
-            if st.button("Submit"):
-                if question:
-                    with st.spinner('Generating response...'):
-                        response = get_response(question)
-                        st.write("Response:", response)
-
-                        # Check if response contains code
-                        if "python" in response:
-                            cleaned_code = clean_code(response)
-                            if cleaned_code:
-                                # Execute the generated code using the in-memory DataFrame
-                                execute_code(cleaned_code, data)
-                else:
-                    st.error("Please enter a question.")
-
-        with tab4:
-            st.header("Business Recommendations")
-            if st.button("Generate Recommendations"):
-                data_description = data.describe(include='all').to_json()
-                recommendations = generate_business_recommendations(data_description)
-                st.write("Business Recommendations:")
-                for i, recommendation in enumerate(recommendations):
-                    st.write(f"{recommendation}")
     else:
         st.error("Failed to load the dataset.")
 else:
     st.warning("Please upload a dataset to begin.")
-
