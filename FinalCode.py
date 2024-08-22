@@ -16,7 +16,7 @@ def initialize_groq_client(api_key):
     """Initialize Groq client with API key."""
     return Groq(api_key=api_key)
 
-client = initialize_groq_client(api_key="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")  # Replace with your actual API key
+client = initialize_groq_client(api_key="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")  # Replace with your actual API key
 
 # Initialize conversation history for chat
 if 'conversation_history' not in st.session_state:
@@ -253,7 +253,14 @@ if uploaded_file is not None:
                         if "```python" in response:
                             cleaned_code = clean_code(response)
                             if cleaned_code:
-                                execute_code(cleaned_code, data)
+                                st.write("Generated Code:")
+                                st.code(cleaned_code, language='python')
+                                
+                                # Execute the code and display any generated plots
+                                with st.spinner('Executing code and generating visualizations...'):
+                                    execute_code(cleaned_code, st.session_state.get('cleaned_data', data))
+                        else:
+                            st.write("No code was generated in the response.")
                 else:
                     st.error("Please enter a question.")
 
