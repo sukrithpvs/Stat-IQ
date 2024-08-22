@@ -136,31 +136,6 @@ def execute_code(code, df):
         st.error(f"Execution error: {e}")
         return None
 
-def execute_graph_code(code, df):
-    """Execute the dynamically generated graph code and return the figure."""
-    try:
-        cleaned_code = clean_code(code)
-        if not cleaned_code:
-            st.error("No valid Python code to execute.")
-            return None
-
-        # Create a new namespace for execution
-        namespace = {"df": df, "px": px, "np": np, "pd": pd}
-        
-        # Execute the code
-        exec(cleaned_code, namespace)
-        
-        # Find the Plotly figure in the namespace
-        for var in namespace:
-            if isinstance(namespace[var], px.Figure):
-                return namespace[var]
-        
-        st.error("No Plotly figure found in the generated code.")
-        return None
-    except Exception as e:
-        st.error(f"Execution error: {e}")
-        return None
-
 def generate_cleaning_code(data_description, mixed_type_columns):
     """Generate Python code for data cleaning and preprocessing."""
     prompt = f"""
@@ -293,18 +268,17 @@ if uploaded_file is not None:
                         # Generate and execute graph code
                         graph_code = generate_graph_code(question, data_description)
                         if graph_code:
+                            st.write("Generated Graph Code:")
+                            st.code(graph_code, language='python')
+                            
+                            # Execute the graph code
                             col1, col2 = st.columns(2)
                             with col1:
-                                st.write("Generated Graph Code:")
+                                st.write("Generated Code:")
                                 st.code(graph_code, language='python')
-                            
                             with col2:
                                 st.write("Generated Graph:")
-                                fig = execute_graph_code(graph_code, data)
-                                if fig:
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.error("Failed to generate the graph.")
+                                execute_code(graph_code, data)
                 else:
                     st.error("Please enter a question.")
 
