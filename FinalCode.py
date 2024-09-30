@@ -16,7 +16,7 @@ def initialize_groq_client(api_key):
     """Initialize Groq client with API key."""
     return Groq(api_key=api_key)
 
-client = initialize_groq_client(api_key="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") 
+client = initialize_groq_client(api_key="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") 
 
 # Initialize conversation history for chat
 if 'conversation_history' not in st.session_state:
