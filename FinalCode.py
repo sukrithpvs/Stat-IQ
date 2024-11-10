@@ -80,7 +80,7 @@ def get_response(user_query):
         try:
             response = client.chat.completions.create(
                 messages=conversation_history,
-                model="Llama-3.1-70b-Versatile",
+                model="llama-3.2-90b-vision-preview",
                 temperature=0.5,
                 max_tokens=1024,
                 top_p=1,
